@@ -5,6 +5,7 @@
 
 [`readCTPSeries`](ctp_csvd/ctp_tools/ctp.py:58) 是一個用於讀取和處理 CT 灌注（CTP, CT Perfusion）影像序列的函數。此函數能夠將 DICOM 檔案列表轉換為時間序列的 3D 影像，並根據時間資訊進行適當的分組和排序。
 
+
 ## 函數簽名
 
 ```python
@@ -42,7 +43,15 @@ for i in dcmList:
     ds.append(pydicom.read_file(i))
 ```
 
-函數首先使用 `pydicom.read_file()` 讀取所有 DICOM 檔案，將其儲存在 `ds` 列表中。
+函數首先使用 `pydicom.read_file()` 讀取所有 DICOM 檔案，將其儲存在 `ds` 列表中。在這邊 ds 中的影檔案，順序是亂的。我們必須把它重排成正確的順序。
+
+如果我們的每一組 CTP 影像有 160 個切片，而一共有 16 組 CTP。我們必須把所有的影像檔按下面順序排列
+
+```
+0-159: 在第 0 秒取得的第一組 CTP第 0-159 slice 的影像。
+160-319: 在第 3 秒取得的第二組 CTP第 0-159 slice 的影像。
+...
+```
 
 ### 2. 資料結構化階段 (第 62-73 行)
 
@@ -68,7 +77,8 @@ df.reset_index(drop=True, inplace=True)
 - **`acqNumber`**: 擷取編號
 - **`dcmObj`**: 原始 DICOM 物件
 
-資料按 `instanceNumber` 排序以確保正確的順序。
+資料按 `instanceNumber` 排序以確保正確的順序。這邊要注意，不同機器的 instanceNumber 可能會不同。這邊假設的是它會是一個從 0 到 160*16 的連續編號。如果
+他不是這樣排列的，可能要用用一種方式做下一節的動作。
 
 #### CTP DICOM 中的 InstanceNumber 說明
 
@@ -87,12 +97,12 @@ df.reset_index(drop=True, inplace=True)
    - 該切片在該時間點中的空間位置
 
 **範例**：
-假設 CTP 掃描有 20 個切片，5 個時間點：
-- InstanceNumber 1-20：第 1 個時間點的切片
-- InstanceNumber 21-40：第 2 個時間點的切片
-- InstanceNumber 41-60：第 3 個時間點的切片
-- InstanceNumber 61-80：第 4 個時間點的切片
-- InstanceNumber 81-100：第 5 個時間點的切片
+假設 CTP 掃描有 160 個切片，5 個時間點：
+- InstanceNumber 1-160：第 1 個時間點的切片
+- InstanceNumber 161-320：第 2 個時間點的切片
+- InstanceNumber 321-380：第 3 個時間點的切片
+- InstanceNumber 381-540: 第 4 個時間點的切片
+- InstanceNumber 541-720：第 5 個時間點的切片
 
 這就是為什麼 `readCTPSeries` 函數中使用 `fixedInterval` 參數時，會用以下公式計算時間點：
 ```python
@@ -120,6 +130,9 @@ if refTime is not None:
 - 根據指定的 `refTime` 設定參考時間
 - 計算相鄰影像間的時間差
 - 當時間差大於 0.5 秒時，認為是新的時間點，記錄其位置
+這邊的假設是每一個 sequnce 中前後二張的時間差不會太大(> 0.5s)。所以根據這一點，我們把所的影像中。每一組 CTP 的第一張的
+位置存在 locs 之中。
+
 
 #### 3.2 使用編號系統 (`refTime` 為 None)
 
@@ -140,6 +153,9 @@ else:
 
 ### 4. 影像重建階段 (第 93-109 行)
 
+這一段我們會用在 3D 醫學影像中最常見的 SimpleITK 來將 2D 的 DICOM 檔組合成一個 3D 影像。接下來
+我們就可以把整組 CTP 的影像當成一個 3D 來處理。
+
 ```python
 times = []
 images = []
@@ -154,6 +170,23 @@ for tp in range(len(locs)-1):
 - 根據時間點分割位置 (`locs`) 將 DICOM 切片分組
 - 每組切片使用 [`dcmLstToSitkImage`](ctp_csvd/ctp_tools/ctp.py:11) 函數重建為 3D 影像
 - 記錄每個時間點的時間戳記
+
+例如說我們可以把它的切片數從 160 轉換成 16。
+
+```python
+def shrink_image(image, factors=[1, 1, 10]):
+    """
+    factors: 每個維度的縮小因子
+    [1, 1, 10] 表示 x,y 不變，z 方向縮小 10 倍
+    """
+    shrinker = sitk.ShrinkImageFilter()
+    shrinker.SetShrinkFactors(factors)
+    return shrinker.Execute(image)
+
+# 使用範例（160/10 = 16）
+new_image = shrink_image(original_image, [1, 1, 10])
+```
+
 
 ### 5. 時間正規化階段 (第 101-104 行)
 
