@@ -1,3 +1,4 @@
+
 # readCTPSeries 函數分析說明
 
 ## 概述
