@@ -12,13 +12,19 @@ C(t) = CBF × AIF(t) ⊗ R(t)
 
 去卷積的目標是從已知的 C(t) 和 AIF(t) 求解 R(t)，進而計算血流動力學參數。
 
+C(t) 是我們從 CTP 中讀進來的值。AIF(t) 是前面用 huristic 方法自動找出的區域的輸入值。它們都是從一系統 CTP 中算出來的參數。
+
+而 R(t) 就是我們現在需要算出來的結果。它其時代表了生理的模型，也就是腦組織決定了血流要如何經血管到每一個位置的動力學模型。
+
+通過去卷積計算得到重要的血流動力學參數：MTT (平均通過時間)、CBV (腦血容量)、CBF (腦血流量) 和 tMax (最大殘留函數時間)。
+
+
 ### 函數簽名
 ```python
 def runDeconv(imCTC, tIdx, brainMask, aifProps, cSVDThres=0.1, method='bcSVD1', outsideValue=-1):
 ```
 
 ### 功能描述
-執行去卷積分析 (Deconvolution Analysis)，這是 CTP 分析的核心計算步驟。通過去卷積計算得到重要的血流動力學參數：MTT (平均通過時間)、CBV (腦血容量)、CBF (腦血流量) 和 tMax (最大殘留函數時間)。
 
 ### 參數說明
 - **`imCTC`**: 對比劑時間曲線影像
