@@ -1,5 +1,12 @@
 # Introduction
 
+# Documents
+* [readCTPSeries](readCTPSeries.md)
+* [CTC](CTC.md)
+* [TTP](TTP.md)
+* [De convolution/SVD](Deconv.md)
+
+
 This is an __example__ of generating head CT perfusion map from series of CT scans by cSVD-based deconvolution in Python.
 
 **THE ALGORITHM HAS NOT BEEN VALIDATED AND IS NOT INTENDED FOR CLINICAL USAGE**
